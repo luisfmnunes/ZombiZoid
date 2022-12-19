@@ -1,0 +1,4 @@
+app_id: "your app id"
+bot_key: "your bot key"
+bot_token: "your BOT TOKEN (CAREFUL CRITICAL INFO. DO NOT PUSH THIS TO REMOTE REPO)"
+bot_permission: "bot permission code"
