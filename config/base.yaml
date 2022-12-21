@@ -1,4 +1,17 @@
+# Discord Config
 app_id: "your app id"
 bot_key: "your bot key"
 bot_token: "your BOT TOKEN (CAREFUL CRITICAL INFO. DO NOT PUSH THIS TO REMOTE REPO)"
 bot_permission: "bot permission code"
+guild_id: "guild_id"
+
+# SSH Config
+ssh_port: 22
+
+# RCON Config
+rcon_port: "your RCON port"
+rcon_pwd: "your RCON password"
+rcon_timeout: 10 # time in seconds
+
+# General Config
+server: "your IP or DDNS address"
