@@ -7,6 +7,8 @@ guild_id: "guild_id"
 
 # SSH Config
 ssh_port: 22
+ssh_user: "your ssh user"
+ssh_passwod: "your ssh user password"
 
 # RCON Config
 rcon_port: "your RCON port"
@@ -15,3 +17,5 @@ rcon_timeout: 10 # time in seconds
 
 # General Config
 server: "your IP or DDNS address"
+start_file: "your server start script (e.g. start_server.sh)"
+start_path: "your start script parent path"

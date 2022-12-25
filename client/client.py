@@ -4,8 +4,10 @@ from nextcord.ext import commands
 from nextcord import Interaction
 from rcon.source import Client as rcon_cl
 from rcon.exceptions import *
+from .ssh import SSHCl
 from utils.logger import get_logger
 from .commands import *
+from functools import wraps
 
 class DiscordBot(commands.Bot):
     """
@@ -15,6 +17,12 @@ class DiscordBot(commands.Bot):
         super().__init__(*args, **kwargs)
         self.config = config
         self.logger = get_logger()
+        self.ssh_cl = SSHCl(config)
+        self.ssh_server = SSHCl(config)
+        
+        self.server_stdio = None
+        self.server_stdout = None
+        self.server_stderr = None
     
     async def on_ready(self):
         self.logger.info(f"{self.user} has connected to Discord")
@@ -23,10 +31,25 @@ class DiscordBot(commands.Bot):
     #     self.logger.debug(message)
     #     if not message.author == self.user:
     #         await message.channel.send("Hmm... Coquinha Gelada")
-
+    
+    async def on_command_error(self, context: commands.Context, exception: commands.errors.CommandError) -> None:
+        if isinstance(exception, commands.CommandNotFound):
+            await context.send("Command Not Found")
+        else:
+            self.logger.debug(exception)
+    
     def local_run(self):
         self.run(self.config["bot_token"])
 
+    def rcon_command(self, function):
+        @wraps(function)
+        def inner(*args, **kwargs):
+            try:
+                host, port, pwd, timeout = self.config.get("server"), self.config.get("rcon_port"), self.config.get("rcon_pwd"), self.config.get("rcon_timeout")
+                rcon_client = rcon_cl(host, port, pwd, timeout)
+                function(rcon_client = rcon_client)
+            except (ConfigReadError, SessionTimeout, UserAbort, WrongPassword, socket.timeout) as e:
+                function(exception = e)
 
 def get_bot(config, *args, **kwargs):
     
@@ -38,15 +61,113 @@ def get_bot(config, *args, **kwargs):
     async def status(interaction: Interaction):
         await interaction.response.send_message("Bot Loaded and Runnning")
     
+    @bot.slash_command(name="running", description="Returns if the PZ Server is Runnning", guild_ids=[config["guild_id"]])
+    async def running(intercation: Interaction):
+        
+        @bot.ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
+        def ping_pgred(streams, *args, **kwargs):
+            stdout, stderr = streams
+            bot.logger.debug(stdout)
+            bot.logger.debug(stderr)
+            message = None
+            if len(stdout):
+                message = f"Server running on proccess {stdout[0]}"
+            elif stderr:
+                message = f"Errors found on command: {stderr}"
+            else:
+                message = f"Server is not running"
+
+            return message
+        
+        message = ping_pgred()
+        
+        await intercation.response.send_message(message)
+    
+    @bot.slash_command(name="restart", description="Restarts the server on runner", guild_ids=[config["guild_id"]])
+    async def restart(interaction: Interaction):
+        
+        @bot.ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
+        def ping_pgred(streams, *args, **kwargs):
+            stdout, _ = streams
+            bot.logger.debug(stdout)
+            return next(iter(stdout), None)
+        
+        proc = ping_pgred()
+        
+        @bot.ssh_cl.ping_command(f"kill -9 {proc}")
+        def kill_server(streams, *args, **kwargs):
+            stdout, _ = streams
+            bot.logger.debug(stdout)
+            return stdout
+        
+        if proc:
+            await interaction.response.send_message(f"Server Running on {proc}. Restarting...")
+            # await interaction.response.send_message(kill_server())
+            kill_server()
+        else:
+            await interaction.response.send_message("No Server Running. Initializing Server")
+
+        bot.server_stdio, bot.server_stdout, bot.server_stderr = bot.ssh_server.attached_command(
+            "/".join([
+                config["start_path"], 
+                config["start_file"]
+                ])
+        )
+        
+        bot.server_stdio.close()
+        
+        bot.logger.info("Server Started")
+        
+    @bot.command(name="log")
+    async def log(ctx: commands.Context, *args):
+        count = 5
+        if len(args):
+            count = int(next(iter(args)))
+        await ctx.message.add_reaction("⏳")
+        if bot.server_stdout:
+            bot.server_stdout.channel.settimeout(10) # sets interval to wait for new messages
+            last_lines = list()
+            try:
+                for line in iter(bot.server_stdout.readline, ""):
+                    last_lines.append(line)
+                    bot.logger.debug(line)
+            except:
+                pass
+            
+            last_lines = last_lines[-count:]
+            message = "\n".join(last_lines)
+            
+            if not message:
+                message = "No new Logs Available"
+            
+            await ctx.message.clear_reaction("⏳")
+            await ctx.send(message)
+            await ctx.message.add_reaction("\N{WHITE HEAVY CHECK MARK}")
+        
+        else:
+            await ctx.message.clear_reaction("⏳")
+            await ctx.send("Server not Running.")
+            await ctx.message.add_reaction("\N{CROSS MARK}")
+        
+        
+    
     # Command Factory
     def function_builder(cmd):
         @bot.command(name=cmd.name)
-        async def SendMessage(ctx: commands.Context):
+        async def SendMessage(ctx: commands.Context, *args):
             bot.logger.debug(ctx.message)
+            bot.logger.debug(f"Command Arguments: {args}")
             bot.logger.debug(cmd)
-            try:
-                await ctx.message.add_reaction("⏳")
+            await ctx.message.add_reaction("⏳")
+            
+            if len(args) not in cmd.args:
+                await ctx.send(f"Invalid number of arguments for command {cmd.name}")
+                await ctx.message.clear_reaction("⏳")
+                await ctx.message.add_reaction("\N{CROSS MARK}")
                 
+                return
+            
+            try:                
                 with rcon_cl(bot.config["server"], 
                              bot.config["rcon_port"], 
                              passwd=bot.config["rcon_pwd"], 
@@ -54,16 +175,31 @@ def get_bot(config, *args, **kwargs):
                     message = cl.run(cmd.name)
                     bot.logger.debug(f"Command Response: {message.splitlines()[0]}")
                 
+                # specific behaviour from checkModsNeedUpdate that writes to server log
+                if cmd.name == "checkModsNeedUpdate": 
+                    if bot.server_stdout:
+                        await ctx.send(message)
+                        message = None
+                        bot.server_stdout.channel.settimeout(3) # sets interval to wait for new messages
+                        try:
+                            for line in iter(bot.server_stdout.readline, ""):
+                                if("CheckMods" in line):
+                                    await ctx.send(line)
+                                bot.logger.debug(line)
+                        except:
+                            pass
+                
                 await ctx.message.clear_reaction("⏳")
                 await ctx.message.add_reaction("\N{WHITE HEAVY CHECK MARK}")
-            except (ConfigReadError, SessionTimeout, UserAbort, WrongPassword, socket.timeout) as e:
+            except Exception as e:
                 bot.logger.warning(e)
-                message = "Error communicating with Project Zomboid Bilulu Server"
+                message = f"Error communicating with Project Zomboid Bilulu Server.\n{e}"
                 
                 await ctx.message.clear_reaction("⏳")
                 await ctx.message.add_reaction("\N{CROSS MARK}")
-                    
-            await ctx.send(message)
+            
+            if message:       
+                await ctx.send(message)
         
         return SendMessage
         
