@@ -118,6 +118,69 @@ def get_bot(config, *args, **kwargs):
         
         bot.logger.info("Server Started")
         
+    @bot.slash_command(name="update", description="Update Server on runner", guild_ids=[config["guild_id"]])
+    async def update(interaction: Interaction):
+        
+        @bot.ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
+        def ping_pgred(streams, *args, **kwargs):
+            stdout, _ = streams
+            bot.logger.debug(stdout)
+            return next(iter(stdout), None)
+        
+        proc = ping_pgred()
+        
+        @bot.ssh_cl.ping_command(f"kill -9 {proc}")
+        def kill_server(streams, *args, **kwargs):
+            stdout, _ = streams
+            bot.logger.debug(stdout)
+            return stdout
+        
+        if proc:
+            kill_server()
+        
+        await interaction.send("Updating Server:")
+        
+        @bot.ssh_cl.ping_command(f"steamcmd +runscript {config['update_script']}")
+        def update_server(streams, *args, **kwargs):
+            stdout, _ = streams
+            bot.logger.debug(stdout)
+            return stdout
+
+        messages = update_server()
+        await interaction.send("\n".join(messages))
+        bot.server_stdio, bot.server_stdout, bot.server_stderr = bot.ssh_server.attached_command(
+            "/".join([
+                config["start_path"], 
+                config["start_file"]
+                ])
+        )
+        
+        bot.server_stdio.close()
+        
+        bot.logger.info("Server Started")
+        
+    @bot.command(name="info")
+    async def help(ctx: commands.Context, *args):
+        command = next(iter(args), None)
+        await ctx.message.add_reaction("⏳")
+        if command and not command in zz_help:
+            await ctx.message.clear_reaction("⏳")
+            await ctx.message.add_reaction("\N{CROSS MARK}")
+            await ctx.send(f"Command **{command}** Not Found")
+        elif command and command in zz_help:
+            message = f"Command **{command}**:\n{'-'*2} Usage: {zz_help[command].usage}\n{'-'*2} Description: {zz_help[command].description}"
+            await ctx.message.clear_reaction("⏳")
+            await ctx.message.add_reaction("\N{WHITE HEAVY CHECK MARK}")
+            await ctx.send(message)
+        else:
+            message = ""
+            for command in zz_help:
+                message += f"Command **{command}**:\n{'-'*2} Usage: {zz_help[command].usage}\n{'-'*2} Description: {zz_help[command].description}\n\n"
+            await ctx.message.clear_reaction("⏳")
+            await ctx.message.add_reaction("\N{WHITE HEAVY CHECK MARK}")
+            
+            await ctx.send(message)
+
     @bot.command(name="log")
     async def log(ctx: commands.Context, *args):
         count = 5
@@ -160,6 +223,9 @@ def get_bot(config, *args, **kwargs):
             bot.logger.debug(cmd)
             await ctx.message.add_reaction("⏳")
             
+            # adds double quotes to arguments that contains space
+            args = [f'"{a}"' for a in args if " " in a]
+            
             if len(args) not in cmd.args:
                 await ctx.send(f"Invalid number of arguments for command {cmd.name}")
                 await ctx.message.clear_reaction("⏳")
@@ -172,7 +238,7 @@ def get_bot(config, *args, **kwargs):
                              bot.config["rcon_port"], 
                              passwd=bot.config["rcon_pwd"], 
                              timeout=bot.config["rcon_timeout"]) as cl:
-                    message = cl.run(cmd.name)
+                    message = cl.run(cmd.name, *args)
                     bot.logger.debug(f"Command Response: {message.splitlines()[0]}")
                 
                 # specific behaviour from checkModsNeedUpdate that writes to server log

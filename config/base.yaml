@@ -19,3 +19,4 @@ rcon_timeout: 10 # time in seconds
 server: "your IP or DDNS address"
 start_file: "your server start script (e.g. start_server.sh)"
 start_path: "your start script parent path"
+update_script: "path to your steamcmd update script"
