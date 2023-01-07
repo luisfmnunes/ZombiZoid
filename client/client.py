@@ -9,7 +9,7 @@ from .ssh import SSHCl
 from utils.logger import get_logger
 from .commands import *
 from functools import wraps
-from navigator import nav, By
+from .navigator import nav, By
 
 class DiscordBot(commands.Bot):
     """
