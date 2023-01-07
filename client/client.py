@@ -1,3 +1,4 @@
+import re
 import nextcord
 import socket
 from nextcord.ext import commands
@@ -8,6 +9,7 @@ from .ssh import SSHCl
 from utils.logger import get_logger
 from .commands import *
 from functools import wraps
+from navigator import nav, By
 
 class DiscordBot(commands.Bot):
     """
@@ -23,6 +25,8 @@ class DiscordBot(commands.Bot):
         self.server_stdio = None
         self.server_stdout = None
         self.server_stderr = None
+        
+        # self.nav = nav
     
     async def on_ready(self):
         self.logger.info(f"{self.user} has connected to Discord")
@@ -50,6 +54,19 @@ class DiscordBot(commands.Bot):
                 function(rcon_client = rcon_client)
             except (ConfigReadError, SessionTimeout, UserAbort, WrongPassword, socket.timeout) as e:
                 function(exception = e)
+
+async def fail_response(ctx: commands.Context, message: str = None):
+    await ctx.message.clear_reaction("⏳")
+    await ctx.message.add_reaction("\N{CROSS MARK}")
+    if message:
+        await ctx.send(message)
+
+async def success_response(ctx: commands.Context, message: str = None):
+    await ctx.message.clear_reaction("⏳")
+    await ctx.message.add_reaction("\N{WHITE HEAVY CHECK MARK}")
+    if message:
+        await ctx.send(message)
+    
 
 def get_bot(config, *args, **kwargs):
     
@@ -164,22 +181,15 @@ def get_bot(config, *args, **kwargs):
         command = next(iter(args), None)
         await ctx.message.add_reaction("⏳")
         if command and not command in zz_help:
-            await ctx.message.clear_reaction("⏳")
-            await ctx.message.add_reaction("\N{CROSS MARK}")
-            await ctx.send(f"Command **{command}** Not Found")
+            await fail_response(ctx, f"Command **{command}** Not Found")
         elif command and command in zz_help:
             message = f"Command **{command}**:\n{'-'*2} Usage: {zz_help[command].usage}\n{'-'*2} Description: {zz_help[command].description}"
-            await ctx.message.clear_reaction("⏳")
-            await ctx.message.add_reaction("\N{WHITE HEAVY CHECK MARK}")
-            await ctx.send(message)
+            await success_response(ctx, message)
         else:
             message = ""
             for command in zz_help:
                 message += f"Command **{command}**:\n{'-'*2} Usage: {zz_help[command].usage}\n{'-'*2} Description: {zz_help[command].description}\n\n"
-            await ctx.message.clear_reaction("⏳")
-            await ctx.message.add_reaction("\N{WHITE HEAVY CHECK MARK}")
-            
-            await ctx.send(message)
+            await success_response(ctx, message)
 
     @bot.command(name="log")
     async def log(ctx: commands.Context, *args):
@@ -203,18 +213,62 @@ def get_bot(config, *args, **kwargs):
             if not message:
                 message = "No new Logs Available"
             
-            await ctx.message.clear_reaction("⏳")
-            await ctx.send(message)
-            await ctx.message.add_reaction("\N{WHITE HEAVY CHECK MARK}")
+            await success_response(ctx, message)
         
         else:
-            await ctx.message.clear_reaction("⏳")
-            await ctx.send("Server not Running.")
-            await ctx.message.add_reaction("\N{CROSS MARK}")
+            await fail_response(ctx, "Server not Running.")
         
+    @bot.command(name="addmod")
+    async def addmod(ctx: commands.Context, *args):
         
+        bot.logger.debug(f"addmod. Command Arguments: {args}")
+        await ctx.message.add_reaction("⏳")
+        
+        if len(args) != 1:
+            await fail_response(ctx, "Invalid number of arguments for command addmod")
+            
+            return
+        
+        url = args[0]
+        
+        id_regex =              re.compile(r"id=(\d{10})")
+        workshop_regex =     re.compile(r"Workshop ID: (\d{10})")
+        mod_regex =          re.compile(r"Mod ID: (\w+)")
+        map_regex =             re.compile(r"Map Folder: (\w+)")
+        
+        mod_id = id_regex.findall(url)
+        if not mod_id:
+            bot.logger.debug(f"Expected URL from a Steam Workshop Mod. {url}")
+            await fail_response(ctx, "Invalid URL. Expect URL from a Steam Workshop Mod")
+            
+            return
+        else:
+            mod_id = next(iter(mod_id))
+            
+        bot.logger.debug(f"Mod ID Found: {mod_id}")
+        try:
+            nav.get(url)
+            
+            result = nav.find_element(By.ID, 'highlightContent').text
+            title = nav.find_element(By.CLASS_NAME, 'workshopItemTitle').text
+            
+            text_mod_id = mod_regex.findall(result)
+            text_workshop_id = workshop_regex.findall(result)
+            map_folder = map_regex.findall(result)
+            
+        except Exception as e:
+            bot.logger.debug(e)
+            fail_response(ctx, "Cannot Navigate URL")
+            
+        if map_folder:
+            fail_response(ctx, "Cannot Handle Map Mods Yet")
+            
+        success_response(
+            ctx,
+            f"Mod Title: {title}\nWorkshop ID: {mod_id}\nMod ID(s): {', '.join(text_mod_id)}"    
+        )
     
-    # Command Factory
+    # RCON Command Factory
     def function_builder(cmd):
         @bot.command(name=cmd.name)
         async def SendMessage(ctx: commands.Context, *args):
@@ -227,9 +281,7 @@ def get_bot(config, *args, **kwargs):
             args = [f'"{a}"' for a in args if " " in a]
             
             if len(args) not in cmd.args:
-                await ctx.send(f"Invalid number of arguments for command {cmd.name}")
-                await ctx.message.clear_reaction("⏳")
-                await ctx.message.add_reaction("\N{CROSS MARK}")
+                await fail_response(ctx, f"Invalid number of arguments for command {cmd.name}")
                 
                 return
             
@@ -255,15 +307,13 @@ def get_bot(config, *args, **kwargs):
                         except:
                             pass
                 
-                await ctx.message.clear_reaction("⏳")
-                await ctx.message.add_reaction("\N{WHITE HEAVY CHECK MARK}")
+                await success_response(ctx)
             except Exception as e:
                 bot.logger.warning(e)
                 message = f"Error communicating with Project Zomboid Bilulu Server.\n{e}"
                 
-                await ctx.message.clear_reaction("⏳")
-                await ctx.message.add_reaction("\N{CROSS MARK}")
-            
+                await fail_response(ctx)
+                
             if message:       
                 await ctx.send(message)
         
