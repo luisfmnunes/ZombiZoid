@@ -81,6 +81,7 @@ def get_bot(config, *args, **kwargs):
     @bot.slash_command(name="running", description="Returns if the PZ Server is Runnning", guild_ids=[config["guild_id"]])
     async def running(intercation: Interaction):
         
+        await intercation.response.defer()
         @bot.ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
         def ping_pgred(streams, *args, **kwargs):
             stdout, stderr = streams
@@ -98,11 +99,12 @@ def get_bot(config, *args, **kwargs):
         
         message = ping_pgred()
         
-        await intercation.response.send_message(message)
+        await intercation.followup.send(content= message)
     
     @bot.slash_command(name="restart", description="Restarts the server on runner", guild_ids=[config["guild_id"]])
     async def restart(interaction: Interaction):
         
+        await interaction.response.defer()
         @bot.ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
         def ping_pgred(streams, *args, **kwargs):
             stdout, _ = streams
@@ -118,11 +120,11 @@ def get_bot(config, *args, **kwargs):
             return stdout
         
         if proc:
-            await interaction.response.send_message(f"Server Running on {proc}. Restarting...")
+            await interaction.followup.send(content=f"Server Running on {proc}. Restarting...")
             # await interaction.response.send_message(kill_server())
             kill_server()
         else:
-            await interaction.response.send_message("No Server Running. Initializing Server")
+            await interaction.followup.send(content="No Server Running. Initializing Server")
 
         bot.server_stdio, bot.server_stdout, bot.server_stderr = bot.ssh_server.attached_command(
             "/".join([
@@ -138,6 +140,7 @@ def get_bot(config, *args, **kwargs):
     @bot.slash_command(name="update", description="Update Server on runner", guild_ids=[config["guild_id"]])
     async def update(interaction: Interaction):
         
+        await interaction.response.defer()
         @bot.ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
         def ping_pgred(streams, *args, **kwargs):
             stdout, _ = streams
@@ -174,6 +177,7 @@ def get_bot(config, *args, **kwargs):
         
         bot.server_stdio.close()
         
+        await interaction.followup.send(content="Server Updated")
         bot.logger.info("Server Started")
         
     @bot.command(name="info")
