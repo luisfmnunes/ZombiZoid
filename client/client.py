@@ -256,14 +256,16 @@ def get_bot(config, *args, **kwargs):
             text_workshop_id = workshop_regex.findall(result)
             map_folder = map_regex.findall(result)
             
+            bot.logger.debug(f"Mod Title: {title}\nWorkshop ID: {mod_id}\nMod ID(s): {', '.join(text_mod_id)}")
+            
         except Exception as e:
             bot.logger.debug(e)
-            fail_response(ctx, "Cannot Navigate URL")
+            await fail_response(ctx, "Cannot Navigate URL")
             
         if map_folder:
-            fail_response(ctx, "Cannot Handle Map Mods Yet")
+            await fail_response(ctx, "Cannot Handle Map Mods Yet")
             
-        success_response(
+        await success_response(
             ctx,
             f"Mod Title: {title}\nWorkshop ID: {mod_id}\nMod ID(s): {', '.join(text_mod_id)}"    
         )
