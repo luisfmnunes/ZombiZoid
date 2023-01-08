@@ -3,3 +3,6 @@
 
 # Original Config File
 config/config.yaml
+
+# Mods Tiny Database Path
+db/mods

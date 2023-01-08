@@ -27,7 +27,7 @@ class DiscordBot(commands.Bot):
         self.server_stdout = None
         self.server_stderr = None
         
-        self.mods = ModsDB("", indent=4)
+        self.mods = ModsDB("db/mods/mods.json", indent=4)
     
     async def on_ready(self):
         self.logger.info(f"{self.user} has connected to Discord")
