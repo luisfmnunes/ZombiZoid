@@ -10,6 +10,7 @@ from utils.logger import get_logger
 from .commands import *
 from functools import wraps
 from .navigator import nav, By
+from ..db.db import ModsDB, Document
 
 class DiscordBot(commands.Bot):
     """
@@ -26,7 +27,7 @@ class DiscordBot(commands.Bot):
         self.server_stdout = None
         self.server_stderr = None
         
-        # self.nav = nav
+        self.mods = ModsDB("", indent=4)
     
     async def on_ready(self):
         self.logger.info(f"{self.user} has connected to Discord")
@@ -236,8 +237,8 @@ def get_bot(config, *args, **kwargs):
         url = args[0]
         
         id_regex =              re.compile(r"id=(\d{10})")
-        workshop_regex =     re.compile(r"Workshop ID: (\d{10})")
-        mod_regex =          re.compile(r"Mod ID: (\w+)")
+        workshop_regex =        re.compile(r"Workshop ID: (\d{10})")
+        mod_regex =             re.compile(r"Mod ID: (\w+)")
         map_regex =             re.compile(r"Map Folder: (\w+)")
         
         mod_id = id_regex.findall(url)
@@ -260,7 +261,7 @@ def get_bot(config, *args, **kwargs):
             text_workshop_id = workshop_regex.findall(result)
             map_folder = map_regex.findall(result)
             
-            bot.logger.debug(f"Mod Title: {title}\nWorkshop ID: {mod_id}\nMod ID(s): {', '.join(text_mod_id)}")
+            bot.logger.debug(f"Mod Title: {title}; Workshop ID: {mod_id}; Mod ID(s): {', '.join(text_mod_id)}")
             
         except Exception as e:
             bot.logger.debug(e)
@@ -273,6 +274,16 @@ def get_bot(config, *args, **kwargs):
             ctx,
             f"Mod Title: {title}\nWorkshop ID: {mod_id}\nMod ID(s): {', '.join(text_mod_id)}"    
         )
+        
+        bot.mods.insert(Document(
+            {
+                'id': mod_id,
+                'title': title,
+                'url': url,
+                'mods': text_mod_id,
+                'map': None,
+            },
+            doc_id=mod_id))
     
     # RCON Command Factory
     def function_builder(cmd):
