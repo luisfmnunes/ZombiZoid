@@ -261,6 +261,7 @@ def get_bot(config, *args, **kwargs):
         
         try:
             mod_id, title, text_mod_id, map_folder = bot.get_mod_by_url(url)
+            mod_id = next(iter(mod_id))
         except Exception as e:
             bot.logger.debug(e)
             await fail_response(ctx, f"{e}. Cannot Navigate URL")
@@ -269,7 +270,8 @@ def get_bot(config, *args, **kwargs):
         if map_folder:
             await fail_response(ctx, "Cannot Handle Map Mods Yet")
             return
-            
+        
+        bot.logger.debug(f"URL Data: {mod_id} {title} {text_mod_id} {map_folder}")
         if not bot.mods.contains(doc_id=mod_id):
             bot.mods.insert(Document(
                 {
@@ -283,11 +285,12 @@ def get_bot(config, *args, **kwargs):
         else:
             await fail_response(ctx, f"Mod {title} is already added to the server")
             return
-        
+        bot.logger.debug("Reading remote server file")
         sconfig_lines = bot.ssh_cl.read_remote_file(config["server_file"])
         mod_line = next(i for i, l in enumerate(sconfig_lines) if re.search(r"^Mods=", l))
         id_line = next(i for i, l in enumerate(sconfig_lines) if re.search(r"^WorkshopItems", l))
-        
+
+        bot.logger.debug("Filling remote server file with new mod data")
         if ";" in sconfig_lines[mod_line]:
             sconfig_lines[mod_line] =  ";".join([sconfig_lines[mod_line].strip()] + text_mod_id) + "\n"
             sconfig_lines[id_line] = ";".join([sconfig_lines[id_line].strip(), mod_id]) + "\n"

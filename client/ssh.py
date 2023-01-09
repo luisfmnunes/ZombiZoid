@@ -55,8 +55,8 @@ class SSHCl(SSHClient):
         self.connect(self.host, port=self.port, username=self.user, password=self.password)
         ftp = self.open_sftp()
         with ftp.file(file, "w", -1) as f:
-            file.write(buffer)
-            file.flush()
+            f.write(buffer)
+            f.flush()
         ftp.close()
         self.close()
         
