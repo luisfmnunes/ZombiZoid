@@ -50,3 +50,22 @@ class SSHCl(SSHClient):
         stdin, stdout, stderr = self.exec_command(command, get_pty=True)
         
         return stdin, stdout, stderr
+    
+    def write_remote_file(self, file, buffer):
+        self.connect(self.host, port=self.port, username=self.user, password=self.password)
+        ftp = self.open_sftp()
+        with ftp.file(file, "w", -1) as f:
+            file.write(buffer)
+            file.flush()
+        ftp.close()
+        self.close()
+        
+    def read_remote_file(self, file):
+        self.connect(self.host, port=self.port, username=self.user, password=self.password)
+        ftp = self.open_sftp()
+        with ftp.file(file, "r", -1) as f:
+            lines = f.readlines()
+        ftp.close()
+        self.close()
+        
+        return lines

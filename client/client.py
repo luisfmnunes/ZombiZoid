@@ -21,7 +21,7 @@ class DiscordBot(commands.Bot):
         self.config = config
         self.logger = get_logger()
         self.ssh_cl = SSHCl(config)
-        self.ssh_server = SSHCl(config)
+        self.ssh_server = SSHCl(config) # SSH Channel always open to keep server running
         
         self.server_stdio = None
         self.server_stdout = None
@@ -46,15 +46,35 @@ class DiscordBot(commands.Bot):
     def local_run(self):
         self.run(self.config["bot_token"])
 
-    def rcon_command(self, function):
-        @wraps(function)
-        def inner(*args, **kwargs):
-            try:
-                host, port, pwd, timeout = self.config.get("server"), self.config.get("rcon_port"), self.config.get("rcon_pwd"), self.config.get("rcon_timeout")
-                rcon_client = rcon_cl(host, port, pwd, timeout)
-                function(rcon_client = rcon_client)
-            except (ConfigReadError, SessionTimeout, UserAbort, WrongPassword, socket.timeout) as e:
-                function(exception = e)
+    def get_mod_by_url(self, url):
+        id_regex =              re.compile(r"id=(\d{10})")
+        workshop_regex =        re.compile(r"Workshop ID: (\d{10})")
+        mod_regex =             re.compile(r"Mod ID: (\w+)")
+        map_regex =             re.compile(r"Map Folder: (\w+)")
+        
+        mod_id = id_regex.findall(url)
+        if not mod_id:
+            self.logger.debug(f"Expected URL from a Steam Workshop Mod. {url}")
+            
+            raise ValueError(f"Expected URL from a Steam Workshop Mod. {url}")
+        else:
+            mod_id = next(iter(mod_id))
+            
+        self.logger.debug(f"Mod ID Found: {mod_id}")
+        
+        nav.get(url)
+        
+        result = nav.find_element(By.ID, 'highlightContent').text
+        title = nav.find_element(By.CLASS_NAME, 'workshopItemTitle').text
+        
+        text_mod_id = mod_regex.findall(result)
+        text_workshop_id = workshop_regex.findall(result)
+        map_folder = map_regex.findall(result)
+        
+        self.logger.debug(f"Mod Title: {title}; Workshop ID: {mod_id}; Mod ID(s): {', '.join(text_mod_id)}")
+        
+        return text_workshop_id, title, text_mod_id, map_folder
+
 
 async def fail_response(ctx: commands.Context, message: str = None):
     await ctx.message.clear_reaction("⏳")
@@ -223,67 +243,75 @@ def get_bot(config, *args, **kwargs):
         else:
             await fail_response(ctx, "Server not Running.")
         
-    @bot.command(name="addmod")
+    @bot.command(name="add_mod")
     async def addmod(ctx: commands.Context, *args):
         
-        bot.logger.debug(f"addmod. Command Arguments: {args}")
+        bot.logger.debug(f"add_mod. Command Arguments: {args}")
         await ctx.message.add_reaction("⏳")
         
         if len(args) != 1:
             await fail_response(ctx, "Invalid number of arguments for command addmod")
-            
             return
         
         url = args[0]
         
-        id_regex =              re.compile(r"id=(\d{10})")
-        workshop_regex =        re.compile(r"Workshop ID: (\d{10})")
-        mod_regex =             re.compile(r"Mod ID: (\w+)")
-        map_regex =             re.compile(r"Map Folder: (\w+)")
         
-        mod_id = id_regex.findall(url)
-        if not mod_id:
-            bot.logger.debug(f"Expected URL from a Steam Workshop Mod. {url}")
-            await fail_response(ctx, "Invalid URL. Expect URL from a Steam Workshop Mod")
-            
-            return
-        else:
-            mod_id = next(iter(mod_id))
-            
-        bot.logger.debug(f"Mod ID Found: {mod_id}")
         try:
-            nav.get(url)
-            
-            result = nav.find_element(By.ID, 'highlightContent').text
-            title = nav.find_element(By.CLASS_NAME, 'workshopItemTitle').text
-            
-            text_mod_id = mod_regex.findall(result)
-            text_workshop_id = workshop_regex.findall(result)
-            map_folder = map_regex.findall(result)
-            
-            bot.logger.debug(f"Mod Title: {title}; Workshop ID: {mod_id}; Mod ID(s): {', '.join(text_mod_id)}")
-            
+            mod_id, title, text_mod_id, map_folder = bot.get_mod_by_url(url)
         except Exception as e:
             bot.logger.debug(e)
-            await fail_response(ctx, "Cannot Navigate URL")
+            await fail_response(ctx, f"{e}. Cannot Navigate URL")
+            return
             
         if map_folder:
             await fail_response(ctx, "Cannot Handle Map Mods Yet")
+            return
             
+        if not bot.mods.contains(doc_id=mod_id):
+            bot.mods.insert(Document(
+                {
+                    'id': mod_id,
+                    'title': title,
+                    'url': url,
+                    'mods': text_mod_id,
+                    'map': None,
+                },
+                doc_id=mod_id))
+        else:
+            await fail_response(ctx, f"Mod {title} is already added to the server")
+            return
+        
+        sconfig_lines = bot.ssh_cl.read_remote_file(config["server_file"])
+        mod_line = next(i for i, l in enumerate(sconfig_lines) if re.search(r"^Mods=", l))
+        id_line = next(i for i, l in enumerate(sconfig_lines) if re.search(r"^WorkshopItems", l))
+        
+        if ";" in sconfig_lines[mod_line]:
+            sconfig_lines[mod_line] =  ";".join([sconfig_lines[mod_line].strip()] + text_mod_id) + "\n"
+            sconfig_lines[id_line] = ";".join([sconfig_lines[id_line].strip(), mod_id]) + "\n"
+        else:
+            sconfig_lines[mod_line] = sconfig_lines[mod_line].strip() + ";".join(text_mod_id) + "\n"
+            sconfig_lines[id_line] = sconfig_lines[id_line] + mod_id + "\n"
+            
+        bot.ssh_cl.write_remote_file(config["server_file"], "".join(sconfig_lines))
         await success_response(
             ctx,
             f"Mod Title: {title}\nWorkshop ID: {mod_id}\nMod ID(s): {', '.join(text_mod_id)}"    
         )
+
+    @bot.command(name="list_mod")
+    async def list_mod(ctx: commands.Context, *args):
         
-        bot.mods.insert(Document(
-            {
-                'id': mod_id,
-                'title': title,
-                'url': url,
-                'mods': text_mod_id,
-                'map': None,
-            },
-            doc_id=mod_id))
+        bot.logger.debug(f"add_mod. Command Arguments: {args}")
+        await ctx.message.add_reaction("⏳")
+        
+        mods = bot.mods.all()
+        message = "\n".join([f"{mod['id']}: {mod['title']}" for mod in mods])
+        
+        if not message:
+            await fail_response(ctx, "No mods found on server")
+        
+        else:
+            await success_response(ctx, message)
     
     # RCON Command Factory
     def function_builder(cmd):
@@ -299,7 +327,6 @@ def get_bot(config, *args, **kwargs):
             
             if len(args) not in cmd.args:
                 await fail_response(ctx, f"Invalid number of arguments for command {cmd.name}")
-                
                 return
             
             try:                
