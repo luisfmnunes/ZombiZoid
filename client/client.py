@@ -10,7 +10,10 @@ from utils.logger import get_logger
 from .commands import *
 from functools import wraps
 from .navigator import nav, By
-from ..db.db import ModsDB, Document
+from .pages import EmbededModsPageSource, menus
+import sys
+sys.path.append("..")
+from db.db import ModsDB, Document
 
 class DiscordBot(commands.Bot):
     """
@@ -305,13 +308,26 @@ def get_bot(config, *args, **kwargs):
         await ctx.message.add_reaction("⏳")
         
         mods = bot.mods.all()
-        message = "\n".join([f"{mod['id']}: {mod['title']}" for mod in mods])
+        mods = ([f"{mod['id']}: {mod['title']}" for mod in mods])
         
-        if not message:
+        if not mods:
             await fail_response(ctx, "No mods found on server")
         
         else:
-            await success_response(ctx, message)
+            #message = ""
+            await success_response(ctx, f"Total of {len(mods)} Mods on Server")
+#            for mod in mods:
+#              if len(message + mod) > 2000:
+#                await ctx.send(message)
+#                message = mod
+#              else:
+#                message = "\n".join([message, mod])
+#            await ctx.send(message)
+            pages = menus.ButtonMenuPages(
+              source = EmbededModsPageSource(mods),
+            )
+
+            await pages.start(ctx)
     
     # RCON Command Factory
     def function_builder(cmd):
