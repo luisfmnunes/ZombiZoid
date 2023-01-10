@@ -11,6 +11,7 @@ from .commands import *
 from functools import wraps
 from .navigator import nav, By
 from .pages import EmbededModsPageSource, menus
+from pretty_help import PrettyHelp
 import sys
 sys.path.append("..")
 from db.db import ModsDB, Document
@@ -96,7 +97,7 @@ def get_bot(config, *args, **kwargs):
     
     intent = nextcord.Intents.default()
     intent.message_content = True
-    bot = DiscordBot(config, intents=intent,*args, **kwargs)
+    bot = DiscordBot(config, intents=intent, help_command=PrettyHelp(), *args, **kwargs)
     
     @bot.slash_command(name="status", description="Returns Bot Status", guild_ids=[config["guild_id"]])
     async def status(interaction: Interaction):
@@ -327,14 +328,18 @@ def get_bot(config, *args, **kwargs):
 #                message = "\n".join([message, mod])
 #            await ctx.send(message)
             pages = menus.ButtonMenuPages(
-              source = EmbededModsPageSource(mods),
+                source = EmbededModsPageSource(mods),
             )
 
             await pages.start(ctx)
     
     # RCON Command Factory
     def function_builder(cmd):
-        @bot.command(name=cmd.name)
+        @bot.command(name=cmd.name, 
+                    usage=zz_help[cmd.name].usage, 
+                    description=zz_help[cmd.name].description,
+                    brief=zz_help[cmd.name].brief,
+                    help=zz_help[cmd.name].help)
         async def SendMessage(ctx: commands.Context, *args):
             bot.logger.debug(ctx.message)
             bot.logger.debug(f"Command Arguments: {args}")
