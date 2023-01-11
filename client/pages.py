@@ -7,6 +7,9 @@ class EmbededModsPageSource(menus.ListPageSource):
     super().__init__(data, per_page=per_page)
 
   async def  format_page(self, menu, entries):
-    embed = Embed(title=f"Mods Page {menu.current_page + 1}", description="\n".join(entries))
+    embed = Embed(title=f"Mods Page {menu.current_page + 1}")
+    for e in entries:
+      mod_id, mod_title = e.split(sep=": ")
+      embed.add_field(name=mod_title, value=mod_id)
     embed.set_footer(text=f"Page {menu.current_page + 1}/{self.get_max_pages()}")
     return embed

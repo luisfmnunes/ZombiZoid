@@ -237,7 +237,7 @@ def get_bot(config, *args, **kwargs):
                 pass
             
             last_lines = last_lines[-count:]
-            message = "\n".join(last_lines)
+            message = "".join(last_lines)
             
             if not message:
                 message = "No new Logs Available"
@@ -254,7 +254,7 @@ def get_bot(config, *args, **kwargs):
         await ctx.message.add_reaction("⏳")
         
         if len(args) != 1:
-            await fail_response(ctx, "Invalid number of arguments for command addmod")
+            await fail_response(ctx, "Invalid number of arguments for command add_mod")
             return
         
         url = args[0]
@@ -308,7 +308,7 @@ def get_bot(config, *args, **kwargs):
     @bot.command(name="list_mod")
     async def list_mod(ctx: commands.Context, *args):
         
-        bot.logger.debug(f"add_mod. Command Arguments: {args}")
+        bot.logger.debug(f"list_mod. Command Arguments: {args}")
         await ctx.message.add_reaction("⏳")
         
         mods = bot.mods.all()
