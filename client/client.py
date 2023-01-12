@@ -14,7 +14,7 @@ from .pages import EmbededModsPageSource, menus
 from pretty_help import PrettyHelp
 import sys
 sys.path.append("..")
-from db.db import ModsDB, Document
+from db.db import ModsDB, Document, Query
 
 class DiscordBot(commands.Bot):
     """
@@ -304,6 +304,41 @@ def get_bot(config, *args, **kwargs):
             ctx,
             f"Mod Title: {title}\nWorkshop ID: {mod_id}\nMod ID(s): {', '.join(text_mod_id)}"    
         )
+
+    @bot.command(name="remove_mod",
+                usage="mod ID or mod Title",
+                description="Removes a mod from the server",
+                brief="A command to remove a mod from the server",
+                help="""This command removes a mod from the server initialization file.
+                        The removal can be either by giving the mod ID or mod Title.
+                        Both information are obtained from the zz list_mod info.
+                        
+                        Examples: 
+                        - zz remove_mod 2745691230
+                        - zz remove_mod "Title of the mod" """
+                )
+    async def remove_mod(ctx: commands.Context, *args):
+        
+        bot.logger.debug(f"remove_mod. Command Arguments: {args}")
+        await ctx.message.add_reaction("⏳")
+        if len(args) != 1:
+            await fail_response(ctx, "Wrong number of arguments for remove_mod")
+            await ctx.send("Check usage with zz help remove_mod")
+            return
+        
+        arg = next(iter(args))
+        q = Query()
+        
+        remove_entity = bot.mods.search(q.id == arg) or bot.mods.search(q.title == arg)
+        if not remove_entity:
+            await fail_response(ctx, f"Unable to find {arg} id or title")
+            return
+        
+        remove_entity = next(iter(remove_entity))
+        
+        bot.mods.remove(doc_ids=[remove_entity["id"]])
+        
+        await success_response(ctx, f"Removed mod {remove_entity['title']} ({remove_entity['id']})")
 
     @bot.command(name="list_mod")
     async def list_mod(ctx: commands.Context, *args):

@@ -1,4 +1,4 @@
-from tinydb import TinyDB
+from tinydb import TinyDB, Query
 from tinydb.table import Document
 
 from pathlib import Path
