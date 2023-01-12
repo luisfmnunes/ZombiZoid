@@ -20,18 +20,43 @@ class DiscordBot(commands.Bot):
     """
         A class that stores a discord client and bot info
     """
+    
     def __init__(self, config, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.config = config
+        self._config = config
         self.logger = get_logger()
-        self.ssh_cl = SSHCl(config)
-        self.ssh_server = SSHCl(config) # SSH Channel always open to keep server running
         
+        # SSH Channels to invoke server (keeps listening) and ping commands
+        self.__ssh_cl = SSHCl(config)
+        self.__ssh_server = SSHCl(config) # SSH Channel always open to keep server running
+        
+        # Buffers of server invoke
         self.server_stdio = None
         self.server_stdout = None
         self.server_stderr = None
         
+        # TinyDB Mods Database initialization
         self.mods = ModsDB("db/mods/mods.json", indent=4)
+        
+        # SSH common functions
+        @self.__ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
+        def ping_pgrep(streams, *args, **kwargs):
+            stdout, stderr = streams
+            self.logger.debug(stdout)
+            self.logger.debug(stderr)
+            message = None
+            proc = next(iter(stdout), None)
+            if len(stdout):
+                message = f"Server running on proccess {proc}"
+            elif stderr:
+                message = f"Errors found on command: {stderr}"
+            else:
+                message = f"Server is not running"
+
+            return message, proc
+        
+        self.pgrep = ping_pgrep
+        
     
     async def on_ready(self):
         self.logger.info(f"{self.user} has connected to Discord")
@@ -107,7 +132,7 @@ def get_bot(config, *args, **kwargs):
     async def running(intercation: Interaction):
         
         await intercation.response.defer()
-        @bot.ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
+        @bot.__ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
         def ping_pgred(streams, *args, **kwargs):
             stdout, stderr = streams
             bot.logger.debug(stdout)
@@ -130,7 +155,7 @@ def get_bot(config, *args, **kwargs):
     async def restart(interaction: Interaction):
         
         await interaction.response.defer()
-        @bot.ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
+        @bot.__ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
         def ping_pgred(streams, *args, **kwargs):
             stdout, _ = streams
             bot.logger.debug(stdout)
@@ -138,7 +163,7 @@ def get_bot(config, *args, **kwargs):
         
         proc = ping_pgred()
         
-        @bot.ssh_cl.ping_command(f"kill -9 {proc}")
+        @bot.__ssh_cl.ping_command(f"kill -9 {proc}")
         def kill_server(streams, *args, **kwargs):
             stdout, _ = streams
             bot.logger.debug(stdout)
@@ -151,7 +176,7 @@ def get_bot(config, *args, **kwargs):
         else:
             await interaction.followup.send(content="No Server Running. Initializing Server")
 
-        bot.server_stdio, bot.server_stdout, bot.server_stderr = bot.ssh_server.attached_command(
+        bot.server_stdio, bot.server_stdout, bot.server_stderr = bot.__ssh_server.attached_command(
             "/".join([
                 config["start_path"], 
                 config["start_file"]
@@ -166,7 +191,7 @@ def get_bot(config, *args, **kwargs):
     async def update(interaction: Interaction):
         
         await interaction.response.defer()
-        @bot.ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
+        @bot.__ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
         def ping_pgred(streams, *args, **kwargs):
             stdout, _ = streams
             bot.logger.debug(stdout)
@@ -174,7 +199,7 @@ def get_bot(config, *args, **kwargs):
         
         proc = ping_pgred()
         
-        @bot.ssh_cl.ping_command(f"kill -9 {proc}")
+        @bot.__ssh_cl.ping_command(f"kill -9 {proc}")
         def kill_server(streams, *args, **kwargs):
             stdout, _ = streams
             bot.logger.debug(stdout)
@@ -185,7 +210,7 @@ def get_bot(config, *args, **kwargs):
         
         await interaction.send("Updating Server:")
         
-        @bot.ssh_cl.ping_command(f"steamcmd +runscript {config['update_script']}")
+        @bot.__ssh_cl.ping_command(f"steamcmd +runscript {config['update_script']}")
         def update_server(streams, *args, **kwargs):
             stdout, _ = streams
             bot.logger.debug(stdout)
@@ -193,7 +218,7 @@ def get_bot(config, *args, **kwargs):
 
         messages = update_server()
         await interaction.send("\n".join(messages))
-        bot.server_stdio, bot.server_stdout, bot.server_stderr = bot.ssh_server.attached_command(
+        bot.server_stdio, bot.server_stdout, bot.server_stderr = bot.__ssh_server.attached_command(
             "/".join([
                 config["start_path"], 
                 config["start_file"]
@@ -205,22 +230,26 @@ def get_bot(config, *args, **kwargs):
         await interaction.followup.send(content="Server Updated")
         bot.logger.info("Server Started")
         
-    @bot.command(name="info")
-    async def help(ctx: commands.Context, *args):
-        command = next(iter(args), None)
-        await ctx.message.add_reaction("⏳")
-        if command and not command in zz_help:
-            await fail_response(ctx, f"Command **{command}** Not Found")
-        elif command and command in zz_help:
-            message = f"Command **{command}**:\n{'-'*2} Usage: {zz_help[command].usage}\n{'-'*2} Description: {zz_help[command].description}"
-            await success_response(ctx, message)
-        else:
-            message = ""
-            for command in zz_help:
-                message += f"Command **{command}**:\n{'-'*2} Usage: {zz_help[command].usage}\n{'-'*2} Description: {zz_help[command].description}\n\n"
-            await success_response(ctx, message)
+    # @bot.command(name="info")
+    # async def help(ctx: commands.Context, *args):
+    #     command = next(iter(args), None)
+    #     await ctx.message.add_reaction("⏳")
+    #     if command and not command in zz_help:
+    #         await fail_response(ctx, f"Command **{command}** Not Found")
+    #     elif command and command in zz_help:
+    #         message = f"Command **{command}**:\n{'-'*2} Usage: {zz_help[command].usage}\n{'-'*2} Description: {zz_help[command].description}"
+    #         await success_response(ctx, message)
+    #     else:
+    #         message = ""
+    #         for command in zz_help:
+    #             message += f"Command **{command}**:\n{'-'*2} Usage: {zz_help[command].usage}\n{'-'*2} Description: {zz_help[command].description}\n\n"
+    #         await success_response(ctx, message)
 
-    @bot.command(name="log")
+    @bot.command(name="log",
+                usage=zz_help["log"].usage,
+                description=zz_help["log"].description,
+                brief=zz_help["log"].brief,
+                help=zz_help["log"].help)
     async def log(ctx: commands.Context, *args):
         count = 5
         if len(args):
@@ -247,7 +276,11 @@ def get_bot(config, *args, **kwargs):
         else:
             await fail_response(ctx, "Server not Running.")
         
-    @bot.command(name="add_mod")
+    @bot.command(name="add_mod",
+                usage=zz_help["add_mod"].usage,
+                description=zz_help["add_mod"].description,
+                brief=zz_help["add_mod"].brief,
+                help=zz_help["add_mod"].help)
     async def addmod(ctx: commands.Context, *args):
         
         bot.logger.debug(f"add_mod. Command Arguments: {args}")
@@ -287,7 +320,7 @@ def get_bot(config, *args, **kwargs):
             await fail_response(ctx, f"Mod {title} is already added to the server")
             return
         bot.logger.debug("Reading remote server file")
-        sconfig_lines = bot.ssh_cl.read_remote_file(config["server_file"])
+        sconfig_lines = bot.__ssh_cl.read_remote_file(config["server_file"])
         mod_line = next(i for i, l in enumerate(sconfig_lines) if re.search(r"^Mods=", l))
         id_line = next(i for i, l in enumerate(sconfig_lines) if re.search(r"^WorkshopItems", l))
 
@@ -299,23 +332,17 @@ def get_bot(config, *args, **kwargs):
             sconfig_lines[mod_line] = sconfig_lines[mod_line].strip() + ";".join(text_mod_id) + "\n"
             sconfig_lines[id_line] = sconfig_lines[id_line] + mod_id + "\n"
             
-        bot.ssh_cl.write_remote_file(config["server_file"], "".join(sconfig_lines))
+        bot.__ssh_cl.write_remote_file(config["server_file"], "".join(sconfig_lines))
         await success_response(
             ctx,
             f"Mod Title: {title}\nWorkshop ID: {mod_id}\nMod ID(s): {', '.join(text_mod_id)}"    
         )
 
     @bot.command(name="remove_mod",
-                usage="mod ID or mod Title",
-                description="Removes a mod from the server",
-                brief="A command to remove a mod from the server",
-                help="""This command removes a mod from the server initialization file.
-                        The removal can be either by giving the mod ID or mod Title.
-                        Both information are obtained from the zz list_mod info.
-                        
-                        Examples: 
-                        - zz remove_mod 2745691230
-                        - zz remove_mod "Title of the mod" """
+                usage=zz_help["remove_mod"].usage,
+                description=zz_help["remove_mod"].description,
+                brief=zz_help["remove_mod"].brief,
+                help=zz_help["remove_mod"].help
                 )
     async def remove_mod(ctx: commands.Context, *args):
         
@@ -340,7 +367,11 @@ def get_bot(config, *args, **kwargs):
         
         await success_response(ctx, f"Removed mod {remove_entity['title']} ({remove_entity['id']})")
 
-    @bot.command(name="list_mod")
+    @bot.command(name="list_mod",
+                usage=zz_help["list_mod"].usage,
+                description=zz_help["list_mod"].description,
+                brief=zz_help["list_mod"].brief,
+                help=zz_help["list_mod"].help)
     async def list_mod(ctx: commands.Context, *args):
         
         bot.logger.debug(f"list_mod. Command Arguments: {args}")
@@ -389,10 +420,10 @@ def get_bot(config, *args, **kwargs):
                 return
             
             try:                
-                with rcon_cl(bot.config["server"], 
-                             bot.config["rcon_port"], 
-                             passwd=bot.config["rcon_pwd"], 
-                             timeout=bot.config["rcon_timeout"]) as cl:
+                with rcon_cl(config["server"], 
+                             config["rcon_port"], 
+                             passwd=config["rcon_pwd"], 
+                             timeout=config["rcon_timeout"]) as cl:
                     message = cl.run(cmd.name, *args)
                     bot.logger.debug(f"Command Response: {message.splitlines()[0]}")
                 

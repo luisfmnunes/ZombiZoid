@@ -76,4 +76,47 @@ zz_help = {
                    Example: zz additem "KombiV8" Base.Axe 3 
                    - The above adds 3 axes to player KombiV8 inventory. """
     }),
+    "log": edict({
+        "usage": "[lines]",
+        "description": "Returns Server last Log Messages",
+        "brief": "Gets Server Logs",
+        "help": """This command gets the last [lines] log messages and prints back at the called discord channel.
+                    The number of messages [lines] is optional and if not given will return 5 messages.
+                    This command may take long if the server is initializing because it keeps listening to the server and only timesout after 10 seconds without arrival of new messages.
+                    After this commands is called the output buffer of the server is consumed therefore it won't be able to retrieve back previous messages.
+                    
+                    Example: zz log 10
+                    - The above example returns 10 last Log Messages, if exists else returns all the lines available"""
+    }),
+    "add_mod": edict({
+        "usage": "url",
+        "description": "Adds a mod from Steam Workshop from URL",
+        "brief": "Adds mod to server",
+        "help": """This commands receives a URL from a Steam Workshop Mod and adds it to the server.
+                    The URL must be a valid Steam Workshop Mod URL else it returns an error.
+                    In case of mods already added to server, the command informs mod already added.
+                    **ATTENTION**: The Server must be restarted in order for changes take effect (download mod files).
+                    
+                    Example: zz add_mod https://steamcommunity.com/sharedfiles/filedetails/?id=2200148440
+                    - The example above adds Brita's Weapon Pack mod"""
+    }),
+    "remove_mod": edict({
+        "usage": "mod ID || mod Title",
+        "description": "Removes a mod from the server",
+        "brief":"A command to remove a mod from the server",
+        "help":"""This command removes a mod from the server initialization file.
+                The removal can be done either by giving the mod ID or mod Title.
+                Both information are obtained from the zz list_mod command.
+                
+                Examples: 
+                - zz remove_mod 2745691230
+                - zz remove_mod "Title of the mod" """
+    }),
+    "list_mod": edict({
+        "usage": "",
+        "description": "Returns an Interactive List of Mods",
+        "brief": "Returns a List of Added Mods",
+        "help": """The command returns an interactive list with multiple pages of the mods added to the server and inserted on Database.
+                    If the server is reseted, the new initialization file may be Unsynchronized with the Database."""
+    })
 }
