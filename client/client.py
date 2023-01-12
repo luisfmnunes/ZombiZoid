@@ -73,7 +73,7 @@ class DiscordBot(commands.Bot):
             self.logger.debug(exception)
     
     def local_run(self):
-        self.run(self.config["bot_token"])
+        self.run(self._config["bot_token"])
 
     def get_mod_by_url(self, url):
         id_regex =              re.compile(r"id=(\d{10})")
@@ -365,6 +365,8 @@ def get_bot(config, *args, **kwargs):
         
         bot.mods.remove(doc_ids=[remove_entity["id"]])
         
+        # Removes from database but mnissing removal from Server File
+
         await success_response(ctx, f"Removed mod {remove_entity['title']} ({remove_entity['id']})")
 
     @bot.command(name="list_mod",

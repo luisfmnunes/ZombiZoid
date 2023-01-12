@@ -91,7 +91,7 @@ zz_help = {
     "add_mod": edict({
         "usage": "url",
         "description": "Adds a mod from Steam Workshop from URL",
-        "brief": "Adds mod to server",
+        "brief": "Adds a Mod to server",
         "help": """This commands receives a URL from a Steam Workshop Mod and adds it to the server.
                     The URL must be a valid Steam Workshop Mod URL else it returns an error.
                     In case of mods already added to server, the command informs mod already added.
@@ -102,8 +102,8 @@ zz_help = {
     }),
     "remove_mod": edict({
         "usage": "mod ID || mod Title",
-        "description": "Removes a mod from the server",
-        "brief":"A command to remove a mod from the server",
+        "description": "Removes a mod from the server with ID or Title",
+        "brief":"Removes a mod from the server",
         "help":"""This command removes a mod from the server initialization file.
                 The removal can be done either by giving the mod ID or mod Title.
                 Both information are obtained from the zz list_mod command.
