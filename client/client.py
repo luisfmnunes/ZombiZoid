@@ -27,8 +27,8 @@ class DiscordBot(commands.Bot):
         self.logger = get_logger()
         
         # SSH Channels to invoke server (keeps listening) and ping commands
-        self.__ssh_cl = SSHCl(config)
-        self.__ssh_server = SSHCl(config) # SSH Channel always open to keep server running
+        self.ssh_cl = SSHCl(config)
+        self.ssh_server = SSHCl(config) # SSH Channel always open to keep server running
         
         # Buffers of server invoke
         self.server_stdio = None
@@ -39,7 +39,7 @@ class DiscordBot(commands.Bot):
         self.mods = ModsDB("db/mods/mods.json", indent=4)
         
         # SSH common functions
-        @self.__ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
+        @self.ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
         def ping_pgrep(streams, *args, **kwargs):
             stdout, stderr = streams
             self.logger.debug(stdout)
@@ -76,9 +76,9 @@ class DiscordBot(commands.Bot):
         self.run(self._config["bot_token"])
 
     def get_mod_by_url(self, url):
-        id_regex =              re.compile(r"id=(\d{10})")
-        workshop_regex =        re.compile(r"Workshop ID: (\d{10})")
-        mod_regex =             re.compile(r"Mod ID: (\w+)")
+        id_regex =              re.compile(r"id=(\d{9,11})")
+        workshop_regex =        re.compile(r"Workshop ID: (\d{9,11})")
+        mod_regex =             re.compile(r"Mod ID: (\w+) | ModID: (\w+)")
         map_regex =             re.compile(r"Map Folder: (\w+)")
         
         mod_id = id_regex.findall(url)
@@ -132,7 +132,7 @@ def get_bot(config, *args, **kwargs):
     async def running(intercation: Interaction):
         
         await intercation.response.defer()
-        @bot.__ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
+        @bot.ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
         def ping_pgred(streams, *args, **kwargs):
             stdout, stderr = streams
             bot.logger.debug(stdout)
@@ -155,7 +155,7 @@ def get_bot(config, *args, **kwargs):
     async def restart(interaction: Interaction):
         
         await interaction.response.defer()
-        @bot.__ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
+        @bot.ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
         def ping_pgred(streams, *args, **kwargs):
             stdout, _ = streams
             bot.logger.debug(stdout)
@@ -163,7 +163,7 @@ def get_bot(config, *args, **kwargs):
         
         proc = ping_pgred()
         
-        @bot.__ssh_cl.ping_command(f"kill -9 {proc}")
+        @bot.ssh_cl.ping_command(f"kill -9 {proc}")
         def kill_server(streams, *args, **kwargs):
             stdout, _ = streams
             bot.logger.debug(stdout)
@@ -176,7 +176,7 @@ def get_bot(config, *args, **kwargs):
         else:
             await interaction.followup.send(content="No Server Running. Initializing Server")
 
-        bot.server_stdio, bot.server_stdout, bot.server_stderr = bot.__ssh_server.attached_command(
+        bot.server_stdio, bot.server_stdout, bot.server_stderr = bot.ssh_server.attached_command(
             "/".join([
                 config["start_path"], 
                 config["start_file"]
@@ -191,7 +191,7 @@ def get_bot(config, *args, **kwargs):
     async def update(interaction: Interaction):
         
         await interaction.response.defer()
-        @bot.__ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
+        @bot.ssh_cl.ping_command(f"pgrep -u {config['ssh_user']} {config['start_file']}")
         def ping_pgred(streams, *args, **kwargs):
             stdout, _ = streams
             bot.logger.debug(stdout)
@@ -199,7 +199,7 @@ def get_bot(config, *args, **kwargs):
         
         proc = ping_pgred()
         
-        @bot.__ssh_cl.ping_command(f"kill -9 {proc}")
+        @bot.ssh_cl.ping_command(f"kill -9 {proc}")
         def kill_server(streams, *args, **kwargs):
             stdout, _ = streams
             bot.logger.debug(stdout)
@@ -210,7 +210,7 @@ def get_bot(config, *args, **kwargs):
         
         await interaction.send("Updating Server:")
         
-        @bot.__ssh_cl.ping_command(f"steamcmd +runscript {config['update_script']}")
+        @bot.ssh_cl.ping_command(f"steamcmd +runscript {config['update_script']}")
         def update_server(streams, *args, **kwargs):
             stdout, _ = streams
             bot.logger.debug(stdout)
@@ -218,7 +218,7 @@ def get_bot(config, *args, **kwargs):
 
         messages = update_server()
         await interaction.send("\n".join(messages))
-        bot.server_stdio, bot.server_stdout, bot.server_stderr = bot.__ssh_server.attached_command(
+        bot.server_stdio, bot.server_stdout, bot.server_stderr = bot.ssh_server.attached_command(
             "/".join([
                 config["start_path"], 
                 config["start_file"]
@@ -320,7 +320,7 @@ def get_bot(config, *args, **kwargs):
             await fail_response(ctx, f"Mod {title} is already added to the server")
             return
         bot.logger.debug("Reading remote server file")
-        sconfig_lines = bot.__ssh_cl.read_remote_file(config["server_file"])
+        sconfig_lines = bot.ssh_cl.read_remote_file(config["server_file"])
         mod_line = next(i for i, l in enumerate(sconfig_lines) if re.search(r"^Mods=", l))
         id_line = next(i for i, l in enumerate(sconfig_lines) if re.search(r"^WorkshopItems", l))
 
@@ -332,7 +332,7 @@ def get_bot(config, *args, **kwargs):
             sconfig_lines[mod_line] = sconfig_lines[mod_line].strip() + ";".join(text_mod_id) + "\n"
             sconfig_lines[id_line] = sconfig_lines[id_line] + mod_id + "\n"
             
-        bot.__ssh_cl.write_remote_file(config["server_file"], "".join(sconfig_lines))
+        bot.ssh_cl.write_remote_file(config["server_file"], "".join(sconfig_lines))
         await success_response(
             ctx,
             f"Mod Title: {title}\nWorkshop ID: {mod_id}\nMod ID(s): {', '.join(text_mod_id)}"    
@@ -366,6 +366,17 @@ def get_bot(config, *args, **kwargs):
         bot.mods.remove(doc_ids=[remove_entity["id"]])
         
         # Removes from database but mnissing removal from Server File
+        sconfig_lines = bot.ssh_cl.read_remote_file(config["server_file"])
+        mod_line = next(i for i, l in enumerate(sconfig_lines) if re.search(r"^Mods=", l))
+        id_line = next(i for i, l in enumerate(sconfig_lines) if re.search(r"^WorkshopItems", l))
+
+        ids = [a["id"] for a in bot.mods.all()]
+        mods = [name for workshop in bot.mods.all() for name in workshop["mods"]]
+
+        sconfig_lines[mod_line] = f"Mods={';'.join(mods)}\n"
+        sconfig_lines[id_line] = f"WorkshopItems={';'.join(ids)}\n"
+
+        bot.ssh_cl.write_remote_file(config["server_file"], "".join(sconfig_lines))
 
         await success_response(ctx, f"Removed mod {remove_entity['title']} ({remove_entity['id']})")
 
@@ -415,7 +426,7 @@ def get_bot(config, *args, **kwargs):
             await ctx.message.add_reaction("⏳")
             
             # adds double quotes to arguments that contains space
-            args = [f'"{a}"' for a in args if " " in a]
+            args = [f'"{a}"' if " " in a else f"{a}" for a in args]
             
             if len(args) not in cmd.args:
                 await fail_response(ctx, f"Invalid number of arguments for command {cmd.name}")
@@ -427,7 +438,7 @@ def get_bot(config, *args, **kwargs):
                              passwd=config["rcon_pwd"], 
                              timeout=config["rcon_timeout"]) as cl:
                     message = cl.run(cmd.name, *args)
-                    bot.logger.debug(f"Command Response: {message.splitlines()[0]}")
+                    bot.logger.debug(f"Command Response: {message}")
                 
                 # specific behaviour from checkModsNeedUpdate that writes to server log
                 if cmd.name == "checkModsNeedUpdate": 
