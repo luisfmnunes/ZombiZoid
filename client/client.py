@@ -78,7 +78,7 @@ class DiscordBot(commands.Bot):
     def get_mod_by_url(self, url):
         id_regex =              re.compile(r"id=(\d{9,11})")
         workshop_regex =        re.compile(r"Workshop ID: (\d{9,11})")
-        mod_regex =             re.compile(r"Mod ID: (\w+) | ModID: (\w+)")
+        mod_regex =             [re.compile(r"Mod ID: (\w+)"), re.compile(r"ModID: (\w+)")]
         map_regex =             re.compile(r"Map Folder: (\w+)")
         
         mod_id = id_regex.findall(url)
@@ -96,7 +96,10 @@ class DiscordBot(commands.Bot):
         result = nav.find_element(By.ID, 'highlightContent').text
         title = nav.find_element(By.CLASS_NAME, 'workshopItemTitle').text
         
-        text_mod_id = mod_regex.findall(result)
+        for reg in mod_regex:
+          text_mod_id = reg.findall(result)
+          if text_mod_id:
+            break
         text_workshop_id = workshop_regex.findall(result)
         map_folder = map_regex.findall(result)
         
@@ -362,16 +365,19 @@ def get_bot(config, *args, **kwargs):
             return
         
         remove_entity = next(iter(remove_entity))
+
+        bot.logger.debug(f"Removing Entity {remove_entity}")
         
-        bot.mods.remove(doc_ids=[remove_entity["id"]])
+        bot.mods.remove(doc_ids=[int(remove_entity["id"])])
         
-        # Removes from database but mnissing removal from Server File
         sconfig_lines = bot.ssh_cl.read_remote_file(config["server_file"])
         mod_line = next(i for i, l in enumerate(sconfig_lines) if re.search(r"^Mods=", l))
         id_line = next(i for i, l in enumerate(sconfig_lines) if re.search(r"^WorkshopItems", l))
 
         ids = [a["id"] for a in bot.mods.all()]
         mods = [name for workshop in bot.mods.all() for name in workshop["mods"]]
+
+        bot.logger.debug(f"Writing changes to server config file")
 
         sconfig_lines[mod_line] = f"Mods={';'.join(mods)}\n"
         sconfig_lines[id_line] = f"WorkshopItems={';'.join(ids)}\n"
