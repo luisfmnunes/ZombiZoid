@@ -279,14 +279,14 @@ def get_bot(config, *args, **kwargs):
             # Checks Wheter maximum Embed description size is reached
             while sum(len(line) for line in last_lines) >= 4096:
               last_lines = last_lines[1:]
-            message = "".join(last_lines)
+            message = f'```{"".join(last_lines)}```'
             
             if not message:
                 message = "No new Logs Available"
             
             await success_response(ctx, f"Retrieved {len(last_lines)} log lines")
-            embed = Embed(description=message, colour = nextcord.Colour.purple())
-            await ctx.send(embed=embed)
+            # embed = Embed(description=message, colour = nextcord.Colour.purple())
+            await ctx.send(message)
         
         else:
             await fail_response(ctx, "Server not Running.")
