@@ -227,8 +227,8 @@ def get_bot(config, *args, **kwargs):
             bot.logger.debug(stdout)
             return stdout
 
-        messages = update_server()
-        await interaction.send("\n".join(messages))
+        messages = "\n".join(update_server())
+        await interaction.send(f'```ansi\n{messages}\n```')
         bot.server_stdio, bot.server_stdout, bot.server_stderr = bot.ssh_server.attached_command(
             "/".join([
                 config["start_path"], 
