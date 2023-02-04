@@ -68,6 +68,7 @@ class DiscordBot(commands.Bot):
     
     async def on_command_error(self, context: commands.Context, exception: commands.errors.CommandError) -> None:
         if isinstance(exception, commands.CommandNotFound):
+            await context.message.add_reaction("\N{CROSS MARK}")
             await context.send("Command Not Found")
         else:
             self.logger.debug(exception)
@@ -279,14 +280,17 @@ def get_bot(config, *args, **kwargs):
             # Checks Wheter maximum Embed description size is reached
             while sum(len(line) for line in last_lines) >= 4096:
               last_lines = last_lines[1:]
-            message = f'```{"".join(last_lines)}```'
+            message = "".join(last_lines)
             
             if not message:
                 message = "No new Logs Available"
             
             await success_response(ctx, f"Retrieved {len(last_lines)} log lines")
-            # embed = Embed(description=message, colour = nextcord.Colour.purple())
-            await ctx.send(message)
+            if len(message) > 2000:
+              embed = Embed(description=message, colour = nextcord.Colour.purple())
+              await ctx.send(embed = embed)
+            else:
+              await ctx.send(f"```{message}```")
         
         else:
             await fail_response(ctx, "Server not Running.")
@@ -465,13 +469,15 @@ def get_bot(config, *args, **kwargs):
                         message = None
                         bot.server_stdout.channel.settimeout(3) # sets interval to wait for new messages
                         try:
+                            logs = list()
                             for line in iter(bot.server_stdout.readline, ""):
                                 if("CheckMods" in line):
-                                    await ctx.send(line)
-                                bot.logger.debug(line)
-                        except:
+                                  # await ctx.send(line)
+                                    logs.append(line)
+                                    bot.logger.debug(line)
+                        except Exception as e:
                             pass
-                
+                        message = f"```{''.join(logs)}```"
                 await success_response(ctx)
             except Exception as e:
                 bot.logger.warning(e)
