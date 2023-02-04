@@ -125,7 +125,12 @@ def get_bot(config, *args, **kwargs):
     
     intent = nextcord.Intents.default()
     intent.message_content = True
-    bot = DiscordBot(config, intents=intent, help_command=PrettyHelp(), *args, **kwargs)
+    bot = DiscordBot(config, 
+                     intents=intent, 
+                     help_command=PrettyHelp(
+                       show_index=False), 
+                     *args, 
+                     **kwargs)
     
     @bot.slash_command(name="status", description="Returns Bot Status", guild_ids=[config["guild_id"]])
     async def status(interaction: Interaction):

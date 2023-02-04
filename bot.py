@@ -24,5 +24,7 @@ if __name__ == "__main__":
     for k,v in config.items():
         log.debug(f"{k}: {v}")
         
-    bot = get_bot(config, command_prefix=["zz "], description="Zomboid Sever Manager")
+    bot = get_bot(config, 
+                  command_prefix=["zz "], 
+                  description="BiluluBois Zomboid Sever Manager Bot")
     bot.local_run()
