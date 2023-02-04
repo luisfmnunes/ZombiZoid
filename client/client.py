@@ -2,7 +2,7 @@ import re
 import nextcord
 import socket
 from nextcord.ext import commands
-from nextcord import Interaction
+from nextcord import Interaction, Embed
 from rcon.source import Client as rcon_cl
 from rcon.exceptions import *
 from .ssh import SSHCl
@@ -149,8 +149,10 @@ def get_bot(config, *args, **kwargs):
                 message = f"Server is not running"
 
             return message
-        
-        message = ping_pgred()
+        try:
+          message = ping_pgred()
+        except:
+          message = f"Failed to communicate with server {config['server']}"
         
         await intercation.followup.send(content= message)
     
@@ -269,12 +271,17 @@ def get_bot(config, *args, **kwargs):
                 pass
             
             last_lines = last_lines[-count:]
+            # Checks Wheter maximum Embed description size is reached
+            while sum(len(line) for line in last_lines) >= 4096:
+              last_lines = last_lines[1:]
             message = "".join(last_lines)
             
             if not message:
                 message = "No new Logs Available"
             
-            await success_response(ctx, message)
+            await success_response(ctx, f"Retrieved {len(last_lines)} log lines")
+            embed = Embed(description=message, colour = nextcord.Colour.purple())
+            await ctx.send(embed=embed)
         
         else:
             await fail_response(ctx, "Server not Running.")
@@ -397,7 +404,7 @@ def get_bot(config, *args, **kwargs):
         await ctx.message.add_reaction("⏳")
         
         mods = bot.mods.all()
-        mods = ([f"{mod['id']}: {mod['title']}" for mod in mods])
+        mods = ([f"{mod['id'] or ERROR}: {mod['title'] or ERROR}" for mod in mods])
         
         if not mods:
             await fail_response(ctx, "No mods found on server")
