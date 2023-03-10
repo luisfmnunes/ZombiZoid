@@ -129,7 +129,8 @@ def get_bot(config, *args, **kwargs):
     bot = DiscordBot(config, 
                      intents=intent, 
                      help_command=PrettyHelp(
-                       show_index=False), 
+                       show_index=False,
+                       no_category="Commands"),
                      *args, 
                      **kwargs)
     
@@ -267,7 +268,7 @@ def get_bot(config, *args, **kwargs):
             count = int(next(iter(args)))
         await ctx.message.add_reaction("⏳")
         if bot.server_stdout:
-            bot.server_stdout.channel.settimeout(10) # sets interval to wait for new messages
+            bot.server_stdout.channel.settimeout(config.pop("rcon_timeout", 10)) # sets interval to wait for new messages
             last_lines = list()
             try:
                 for line in iter(bot.server_stdout.readline, ""):
