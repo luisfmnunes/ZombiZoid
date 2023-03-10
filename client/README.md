@@ -46,3 +46,9 @@ One problem every Zomboid player might have faces when playing on modded servers
 - ### zz log
 
 Want to Retrieve the latest info from Zomboid Dedicated Server Console? The log zz commands allow it to be done. Since Discord has Character Limits, if the logs surpass this limitation, only the possible incoming logs will be sent.
+
+- ### zz players
+
+More of a team player and only want to join the server when your friends are being bitten?? Then check if any friends are playing first with this command.
+
+There are other zz commands available which are mostly related with in-game behaviours, so if you wanna check all available commands, resort to the first zz command of this list.
