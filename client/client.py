@@ -79,7 +79,7 @@ class DiscordBot(commands.Bot):
     def get_mod_by_url(self, url):
         id_regex =              re.compile(r"id=(\d{9,11})")
         workshop_regex =        re.compile(r"Workshop ID: (\d{9,11})")
-        mod_regex =             [re.compile(r"Mod ID: (\w+)"), re.compile(r"ModID: (\w+)")]
+        mod_regex =             [re.compile(r"Mod ID: (.+)(?:\n|$)"), re.compile(r"ModID: (.+)(?:\n|$)")]
         map_regex =             re.compile(r"Map Folder: (\w+)")
         
         mod_id = id_regex.findall(url)
