@@ -80,7 +80,7 @@ class DiscordBot(commands.Bot):
         id_regex =              re.compile(r"id=(\d{9,11})")
         workshop_regex =        re.compile(r"Workshop ID: (\d{9,11})")
         mod_regex =             [re.compile(r"Mod ID: (.+)(?:\n|$)"), re.compile(r"ModID: (.+)(?:\n|$)")]
-        map_regex =             re.compile(r"Map Folder: (\w+)")
+        map_regex =             re.compile(r"Map Folder: (.+)(?:\n|$)")
         
         mod_id = id_regex.findall(url)
         if not mod_id:
@@ -320,10 +320,6 @@ def get_bot(config, *args, **kwargs):
             bot.logger.debug(e)
             await fail_response(ctx, f"{e}. Cannot Navigate URL")
             return
-            
-        if map_folder:
-            await fail_response(ctx, "Cannot Handle Map Mods Yet")
-            return
         
         bot.logger.debug(f"URL Data: {mod_id} {title} {text_mod_id} {map_folder}")
         if not bot.mods.contains(doc_id=mod_id):
@@ -333,7 +329,7 @@ def get_bot(config, *args, **kwargs):
                     'title': title,
                     'url': url,
                     'mods': text_mod_id,
-                    'map': None,
+                    'map': map_folder,
                 },
                 doc_id=mod_id))
         else:
@@ -343,6 +339,7 @@ def get_bot(config, *args, **kwargs):
         sconfig_lines = bot.ssh_cl.read_remote_file(config["server_file"])
         mod_line = next(i for i, l in enumerate(sconfig_lines) if re.search(r"^Mods=", l))
         id_line = next(i for i, l in enumerate(sconfig_lines) if re.search(r"^WorkshopItems", l))
+        map_line = next(i for i, l in enumerate(sconfig_lines) if re.search(r"^Map=", l))
 
         bot.logger.debug("Filling remote server file with new mod data")
         if ";" in sconfig_lines[mod_line]:
@@ -351,11 +348,12 @@ def get_bot(config, *args, **kwargs):
         else:
             sconfig_lines[mod_line] = sconfig_lines[mod_line].strip() + ";".join(text_mod_id) + "\n"
             sconfig_lines[id_line] = sconfig_lines[id_line] + mod_id + "\n"
-            
+        sconfig_lines[map_line] = "Map=" + ";".join(map_folder + [sconfig_lines[map_line].replace("Map=","")])
+
         bot.ssh_cl.write_remote_file(config["server_file"], "".join(sconfig_lines))
         await success_response(
             ctx,
-            f"Mod Title: {title}\nWorkshop ID: {mod_id}\nMod ID(s): {', '.join(text_mod_id)}"    
+            f"Mod Title: {title}\nWorkshop ID: {mod_id}\nMod ID(s): {', '.join(text_mod_id)}" + (f"\nMap ID: {', '.join(map_folder)}" if map_folder else "")
         )
 
     @bot.command(name="remove_mod",
